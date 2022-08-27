@@ -86,7 +86,7 @@ class Dataset_creator():
                     img_data_array.append(image)
                     class_name.append(dir1)
                     img_name.append(file)
-        self.img_data_array = np.array(img_data_array, astype=)
+        self.img_data_array = np.array(img_data_array)
         self.class_name = np.array(class_name)
         self.img_name = np.array(img_name)
         return img_data_array, class_name
@@ -106,4 +106,3 @@ if __name__ == '__main__':
     ax = df.boxplot(column=['blur'], by='light')
     ax.set_xticklabels(light_label)
     plt.show()
-    pass

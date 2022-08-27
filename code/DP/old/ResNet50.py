@@ -1,18 +1,8 @@
-from tensorflow.keras.applications import ResNet50
-from tensorflow.keras import Sequential
-from tensorflow.keras.layers import Dense
-import math, re, os
-import numpy as np
-import os, warnings
-import matplotlib.pyplot as plt
-from matplotlib import gridspec
-import tensorflow as tf
 import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
-from tensorflow.keras.preprocessing import image_dataset_from_directory
 print("Tensorflow version " + tf.__version__)
-import os
+
 def resize_with_crop(image, label):
     i = image
     i = tf.cast(i, tf.float32)
@@ -55,8 +45,8 @@ CLASSES = 5
 pretrained_model = tf.keras.applications.resnet50.ResNet50(
         weights='imagenet',
         include_top=False,
-        input_shape=[224, 224, 3]
-    )
+        input_shape=[224, 224, 3])
+
 pretrained_model.trainable = False
 model = tf.keras.Sequential([
     # To a base pretrained on ImageNet to extract features from images...
