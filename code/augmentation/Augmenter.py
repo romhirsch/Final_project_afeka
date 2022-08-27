@@ -71,7 +71,7 @@ class Augmenter:
         return random_noise(img, mode=self._noise)
 
 class Augmenter_rand(Augmenter):
-    def __init__(self, brightness=(79, 80), saturation=1.3,
+    def __init__(self, img, brightness=(20, 80), saturation=1.3,
                  blur=True, contrast=(56, 57), noise='gaussian'):
         brightness_factor, saturation_factor, contrast_factor = (False, False, False)
         if brightness:
@@ -93,10 +93,10 @@ class Augmenter_rand(Augmenter):
 
 
 if __name__ == '__main__':
-    img = cv2.imread(r"C:\Users\rom21\OneDrive\Desktop\git_project\code\dataset\lol\eval15\high\778.png")
-    ag = Augmenter(brightness=-110, contrast=0.1, noise=False, blur=False, saturation=False)
-    x1 = ag.illumination_augmenter(img)
-    aug = Augmenter_rand(img, noise=False, blur=False, saturation=False)
+    img = cv2.imread(r"E:\dataset\lol\eval15\high\778.png")
+    #ag = Augmenter(brightness=-110, contrast=0.1, noise=False, blur=False, saturation=False)
+    #x1 = ag.illumination_augmenter(img)
+    aug = Augmenter_rand(noise=False, blur=False, saturation=False)
     img_dark = aug.illumination_augmenter(img)
     aug.print_factors()
     plotim(img_dark)
