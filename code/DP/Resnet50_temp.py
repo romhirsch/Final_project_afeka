@@ -29,25 +29,20 @@ print(foz.list_zoo_datasets())
 """
 Import your dataset:
 """
-img_height, img_width = 180, 180
+img_height, img_width = 224, 224
 batch_size = 32
-
-data_dir_exdark = r"E:\dataset\ExDark"
-train_ds = tf.keras.preprocessing.image_dataset_from_directory(
-  data_dir_exdark,
-  validation_split=0.5,
-  subset="training",
+exdark_dir = r"E:\dataset\ExDark"
+coco_val_dir = r"E:\dataset\coco_val"
+dataset_dir = coco_val_dir
+(train_ds, val_ds) = tf.keras.preprocessing.image_dataset_from_directory(
+  dataset_dir,
+validation_split =0.2,
+  subset="both",
   seed=123,
+  batch_size=batch_size,
   image_size=(img_height, img_width),
-  batch_size=batch_size)
+  crop_to_aspect_ratio=True)
 
-val_ds = tf.keras.preprocessing.image_dataset_from_directory(
-  data_dir_exdark,
-  validation_split=0.5,
-  subset="validation",
-  seed=123,
-  image_size=(img_height, img_width),
-  batch_size=batch_size)
 
 
 plt.figure(figsize=(10, 10))
@@ -82,13 +77,13 @@ with strategy.scope():
   resnet_model.add(Dense(len(train_ds.class_names), activation='softmax'))
   resnet_model.summary()
 
-  resnet_model.compile(optimizer=Adam(learning_rate=0.001),
-                       loss='sparse_categorical_crossentropy',
+  resnet_model.compile(optimizer=Adam(),
+                       loss='scategorical_crossentropy',
                        metrics=['accuracy'])
 
 history = resnet_model.fit(train_ds,
                            validation_data=val_ds,
-                           epochs=15)
+                           epochs=20)
 plt.figure()
 fig1 = plt.gcf()
 plt.plot(history.history['accuracy'])
