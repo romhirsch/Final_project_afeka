@@ -21,7 +21,7 @@ from sklearn import metrics
 
 class DPhandler(object):
 
-    def __init__(self, classes, num_epochs, early_stop_patience=10, batch_training=100, batch_valid=100, image_size=224, channels=3, image_resize=224):
+    def __init__(self, classes, num_epochs, early_stop_patience=10, batch_training=100, batch_valid=100, image_size=224, channels=3, finetuning=False, image_resize=224):
         self.num_epochs = num_epochs
         self.early_stop_patience = early_stop_patience
         self.classes = classes
@@ -31,21 +31,27 @@ class DPhandler(object):
         self.batch_training = batch_training
         self.batch_valid = batch_valid
         self.checkpoint_path = r"E:\dataset\checkpoints"
+        self.finetuning = finetuning
 
 
     def pretrain(self, model, weights, include_top=False):
         self.pretrain_model = model(include_top=include_top, pooling='avg', weights=weights)
 
-
-    def create_model_transfer(self, classification_layers):
+    def create_model(self, classification_layers):
         self.model = Sequential()
         self.model.add(self.pretrain_model)
         for layer in classification_layers:
             self.model.add(layer)
-        self.model.layers[0].trainable = False
+        if self.finetuning:
+            for layer in self.model.layers:
+                layer.trainable = True
+        else:
+            self.model.layers[0].trainable = False
         self.model.summary()
         self.model.compile(optimizer=Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
-
+        print('layers trainable:')
+        for i, layer in enumerate(self.model.layers):
+            print(i, layer.name, layer.trainable)
 
     def loadDataset_preprocessing(self, dataset_dir, preprocess):
 
@@ -53,10 +59,8 @@ class DPhandler(object):
                                             validation_split=0.2,
                                             horizontal_flip=True,
                                             vertical_flip=True)
-        # flow_From_directory generates batches of augmented data (where augmentation can be color conversion, etc)
+        # flow_From_directory generates batches of augmented data
         # Both train & valid folders must have NUM_CLASSES sub-folders
-        #dataset_dir = r"E:\dataset\coco\train"
-        #dataset_valid_dir = r"E:\dataset\coco\valid"
         self.train_generator = data_generator.flow_from_directory(
             dataset_dir,
             classes=self.classes,
@@ -92,9 +96,9 @@ class DPhandler(object):
             steps_per_epoch=self.step_per_epoch_train,
             epochs=self.num_epochs,
             validation_data=self.validation_generator,
-            validation_steps=self.step_per_epoch_valid,
-            callbacks=[cp_callback, cb_early_stopper])
-
+            callbacks=[cp_callback, cb_early_stopper],
+            validation_steps=self.step_per_epoch_valid)
+        #self.model.save_weights(checkpoint_path.format(epoch=0))
 
     def plot_acc_loss(self):
         plt.figure(1, figsize=(15, 8))
@@ -115,14 +119,13 @@ class DPhandler(object):
         plt.show()
 
     @staticmethod
-    def load_dataset(dataset_dir, BATCH_SIZE_TESTING, image_size):
-        data_generator = ImageDataGenerator()
+    def load_dataset(dataset_dir, preprocess, classes, BATCH_SIZE=1, image_size=224):
+        data_generator = ImageDataGenerator(preprocessing_function=preprocess)
         ds = data_generator.flow_from_directory(
             directory=dataset_dir,
             target_size=(image_size, image_size),
-            batch_size=BATCH_SIZE_TESTING,
-            classes=["bicycle", "boat", "bottle", "bus", "car", "cat", "chair", "cup", "dog", "motorcycle", "person",
-                     "dining table"],
+            batch_size=BATCH_SIZE,
+            classes=classes,
             shuffle=False,
             seed=123
         )
@@ -156,17 +159,63 @@ class DPhandler(object):
         plt.savefig('ConMat24.png')
         plt.show()
 
+
     def saved_model(self, path):
         self.model.save(path)
 
-    def dshist(self):
+
+    def evaluate(self, ds):
+        pred, predicted_class_indices = self.predict(ds)
+        self.confuction_mat(ds.labels, predicted_class_indices, list(ds.class_indices.keys()))
+
+
+    @staticmethod
+    def dshistc(ds):
+        fig, ax = plt.subplots(1)
+        ax.set_ylabel('ds')
+        h1 = ax.hist(np.array(list(ds.class_indices.keys()))[ds.labels])
+        return h1
+
+    def dshist(self, ds=''):
         fig, ax = plt.subplots(2,1, sharex=True)
         ax[0].set_ylabel('train ds')
         ax[1].set_ylabel('valid ds')
-
         h1 = ax[0].hist(np.array(list(self.train_generator.class_indices.keys()))[self.train_generator.labels])
         h2 = ax[1].hist(np.array(list(self.validation_generator.class_indices.keys()))[self.validation_generator.labels])
         return h1, h2
+
+    def load_model(self, path):
+        # Recreate the exact same model, including its weights and the optimizer
+        self.model = tf.keras.models.load_model(path)
+        # Show the model architecture
+        self.model.summary()
+
+def load_saved_model(path):
+    dp = DPhandler(classes=classes,
+              num_epochs=20,
+              early_stop_patience=3,
+              batch_training=32,
+              batch_valid=32,
+              finetuning=True)
+    dp.load_model(saved_models_path)
+    return dp
+
+
+def train_model():
+    dp = DPhandler(classes=classes,
+                   num_epochs=20,
+                   early_stop_patience=3,
+                   batch_training=32,
+                   batch_valid=32,
+                   finetuning=True)
+    dp.pretrain(pretrain_model, weights=weights)
+    dp.create_model([Flatten(),
+                              Dense(512, activation='relu'),
+                              Dense(len(classes), activation='softmax')])
+    dp.loadDataset_preprocessing(dataset_dir, preprocess_input)
+    dp.fit()
+    dp.plot_acc_loss()
+    return dp
 
 if __name__ == '__main__':
     dataset_dir = r"E:\dataset\coco\train"
@@ -174,35 +223,25 @@ if __name__ == '__main__':
     dir = r"E:\dataset\ExDark"
     classes = ["bicycle", "boat", "bottle", "bus", "car",
                "cat", "chair", "cup", "dog", "motorcycle",
-               "person", "dining table"]
+              "dining table"] #people
     weights = 'imagenet'
     checkpoint_path = r"E:\dataset\checkpoints"
-    saved_models_path = r"E:\dataset\models_saved"
+    saved_models_path = r"E:\dataset\models_saved\resnet50.h"
+    num_epochs = 20
+    early_stop_patience = 3
+    batch_training = 32
+    batch_valid = 32
     pretrain_model = ResNet50
-    dp = DPhandler(classes=classes,
-              num_epochs=50,
-              early_stop_patience=5,
-              batch_training=32,
-              batch_valid=32)
-    dp.pretrain(pretrain_model, weights=weights)
-    dp.create_model_transfer([Flatten(),
-                              Dense(512, activation='relu'),
-                              Dense(len(classes), activation='softmax')])
-    dp.loadDataset_preprocessing(dataset_dir, preprocess_input)
-    dp.fit()
-    dp.plot_acc_loss()
-    # Save the weights using the `checkpoint_path` format
-    dp.model.save_weights(checkpoint_path.format(epoch=0))
-    loss, acc = dp.model.evaluate(dp.validation_generator, verbose=2)
-    # Save the entire model to a HDF5 file.
-    # The '.h5' extension indicates that the model should be saved to HDF5.
-    #model.save('my_model.h5')
-    #dp.model.evaluate()
-    # model.load_weights('./checkpoints/my_checkpoint')
-    #print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
-    # # Recreate the exact same model, including its weights and the optimizer
-    # new_model = tf.keras.models.load_model('my_model.h5')
-    #
-    # # Show the model architecture
-    # new_model.summary()
+    ds_test = DPhandler.load_dataset(dataset_test_dir, preprocess_input, classes)
+    ds_dark = DPhandler.load_dataset(dir, preprocess_input, classes)
+    DPhandler.dshistc(ds_test)
+    do_train = True
+
+    if do_train:
+        dp = train_model()
+    else:
+        dp = load_saved_model(saved_models_path)
+
+    dp.saved_model(saved_models_path)
+    dp.evaluate(ds_test)
     pass

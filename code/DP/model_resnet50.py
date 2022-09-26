@@ -132,13 +132,13 @@ grid = ParameterGrid(param_grid)
 for params in grid:
     print(params)
 '''
-fit_history = model.fit_generator(
+fit_history = model.fit(
         train_generator,
         steps_per_epoch=STEPS_PER_EPOCH_TRAINING,
         epochs=NUM_EPOCHS,
         validation_data=validation_generator,
         validation_steps=STEPS_PER_EPOCH_VALIDATION,
-        callbacks= [cb_early_stopper]
+        callbacks=[cb_early_stopper]
 
 )
 #model.load_weights(r"E:\dataset\best.hdf5")
