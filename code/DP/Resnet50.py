@@ -3,7 +3,7 @@ import numpy as np
 import PIL
 import tensorflow as tf
 
-from augmentation.Exdark_analyze import *
+from augmentation.ds_analyze import *
 import fiftyone.zoo as foz
 import fiftyone
 import fiftyone.utils.random as four
@@ -15,13 +15,12 @@ print(foz.list_zoo_datasets())
 #dataset = fiftyone.zoo.load_zoo_dataset("coco-2017")
 dataset = fiftyone.zoo.load_zoo_dataset(
     "coco-2017",
-    split="test",
-    classes=["bicycle", "boat", "bottle", "bus", "car", "cat", "chair", "cup", "dog", "motorcycle", "person", "dining table"],
-    max_samples=10000,
+    split="train",
+    classes=["bicycle", "boat", "bottle", "bus", "car", "cat", "chair", "cup", "dog", "motorcycle", "person", "dining table"]
 )
 
 dataset.export(
-    r"E:\dataset\coco\test",
+    r"E:\dataset\coco\train3",
     fiftyone.types.ImageClassificationDirectoryTree,
 label_field="ground_truth")
 
