@@ -1,116 +1,56 @@
+import matplotlib.pyplot as plt
 import numpy as np
+import PIL
 import tensorflow as tf
-import tensorflow_datasets as tfds
-print("Tensorflow version " + tf.__version__)
 
-def resize_with_crop(image, label):
-    i = image
-    i = tf.cast(i, tf.float32)
-    i = tf.image.resize(i, [224, 224])
-    #i = tf.keras.applications.mobilenet_v2.preprocess_input(i)
-    i = tf.image.resize(i, 1, 224, 224, 3)
-    return (i, label)
+from augmentation.ds_analyze import *
+import fiftyone.zoo as foz
+import fiftyone
+import fiftyone.utils.random as four
 
-#ds, ds_info\
-ds, ds_info  = tfds.load('imagenet2012_real',
-                          split='validation',
-                          as_supervised=True,
-                          #batch_size=-1,
-                          with_info=True,
-                          data_dir=r"C:\Users\rom21\OneDrive\Desktop\git_project\code\dataset")
+# List available zoo datasets
+print(foz.list_zoo_datasets())
+#dataset = fiftyone.zoo.load_zoo_dataset("coco-2017")
 
-NUM_CLASSES = ds_info.features["label"].num_classes
-batch_size = 64
-IMG_SIZE = 224
-size = (IMG_SIZE, IMG_SIZE)
-ds = ds.map(lambda image, label: (tf.image.resize(image, size), label))
-#fig = tfds.show_examples(ds)
+#dataset = fiftyone.zoo.load_zoo_dataset("coco-2017")
+dataset = fiftyone.zoo.load_zoo_dataset(
+    "coco-2017",
+    split="train",
+    classes=["bicycle", "boat", "bottle", "bus", "car", "cat", "chair", "cup", "dog", "motorcycle", "person", "dining table"]
+)
+
+dataset.export(
+    r"E:\dataset\coco\train3",
+    fiftyone.types.ImageClassificationDirectoryTree,
+label_field="ground_truth")
 
 
-# image, label = tfds.as_numpy(tfds.load(
-#     'imagenet_v2',
-#     split='test[:300]',
-#     batch_size=-1,
-#     as_supervised=True,
-# ))
+four.random_split(dataset, {"train": 0.8, "val": 0.2}) # split the dataset to val and train datasets
+d = 'val'
+val_ds = dataset.match_tags('val')
+train_ds = dataset.match_tags('train')
+plt.figure(figsize=(10, 10))
 
-#fig = tfds.show_examples(ds, row=4, cols=4)
-# print(image.shape)
-BATCH_SIZE = 16
-#IMAGE_SIZE = [224, 224]
-CLASSES = 5
+for images, labels in train_ds.take(1):
+  for i in range(6):
+    ax = plt.subplot(3, 3, i + 1)
+    plt.imshow(images[i].numpy().astype("uint8"))
+    plt.title(train_ds.class_names[labels[i]])
+    plt.axis("off")
+# session = fo.launch_app(dataset)
 
-# include_top=False - exclude the last layer of the ResNet model that makes predictions
+"""
+Import your dataset:
+"""
 
-pretrained_model = tf.keras.applications.resnet50.ResNet50(
-        weights='imagenet',
-        include_top=False,
-        input_shape=[224, 224, 3])
 
-pretrained_model.trainable = False
-model = tf.keras.Sequential([
-    # To a base pretrained on ImageNet to extract features from images...
-    pretrained_model,
-    # attach a new head to act as a classifier.
-    tf.keras.layers.GlobalAveragePooling2D(),
-    tf.keras.layers.Dense(1000, activation='softmax')
-])
-model.summary()
 
-model.compile(optimizer='sgd', # stochastic gradient descent (SGD)
-              loss='categorical_crossentropy', #  log-loss - this is another term for the same thing
-              metrics=['accuracy']) # report the accuracy metric
-model.fit(
-        ds,
-        steps_per_epoch=6,
-        validation_steps=1)
-
-# display_training_curves(
-#     history.history['loss'],
-#     history.history['val_loss'],
-#     'loss',
-#     211,
-# )
-# display_training_curves(
-#     history.history['sparse_categorical_accuracy'],
-#     history.history['val_sparse_categorical_accuracy'],
-#     'accuracy',
-#     212,
-# )
-
-# EPOCHS = 12
-# STEPS_PER_EPOCH = NUM_TRAINING_IMAGES // BATCH_SIZE
-#
-# history = model.fit(
-#     ds_train,
-#     validation_data=ds_valid,
-#     epochs=EPOCHS,
-#     steps_per_epoch=STEPS_PER_EPOCH,
-#     callbacks=[lr_callback],
-# )
-
-# num_classes = 2
-# resnet_weights_path = r"C:\Users\rom21\OneDrive\Desktop\git_project\code\DP\input\resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5"
-#
-#
-# my_new_model = Sequential()
-# my_new_model.add(ResNet50(include_top=False, pooling='avg', weights=resnet_weights_path))
-# my_new_model.add(Dense(num_classes, activation='softmax'))
-#
-# # Say not to train first layer (ResNet) model. It is already trained
-# my_new_model.layers[0].trainable = False
-#
-# my_new_model.summary()
-# my_new_model.compile(optimizer='sgd', loss='categorical_crossentropy', metrics=['accuracy'])
-#
-# from tensorflow.keras.applications.resnet50 import preprocess_input
-# from tensorflow.python.keras.preprocessing.image import ImageDataGenerator
-# image_size = 224
-# data_generator = ImageDataGenerator(preprocessing_function=preprocess_input)
-#
-#
-# my_new_model.fit(
-#         train_generator,
-#         steps_per_epoch=6,
-#         validation_data=validation_generator,
-#         validation_steps=1)
+img_height, img_width = 180, 180
+batch_size = 32
+plt.figure(figsize=(10, 10))
+for images, labels in train_ds.take(1):
+  for i in range(6):
+    ax = plt.subplot(3, 3, i + 1)
+    plt.imshow(images[i].numpy().astype("uint8"))
+    plt.title(train_ds.class_names[labels[i]])
+    plt.axis("off")

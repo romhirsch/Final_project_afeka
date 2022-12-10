@@ -29,13 +29,32 @@ import augmentation.Augmenter as augmentation
 from tensorflow.python.client import device_lib
 from sklearn.utils import shuffle
 import shutil
+from augmentation.Dark_Augmenter import low_light_transform, blur, read_noise
+from colorama import init
+from termcolor import colored
 
+init()
 file_path = os.path.realpath(__file__)
 file_path = file_path.replace(os.path.basename(file_path), '')
 
 classes = ["bicycle", "boat", "bottle", "bus", "car",
            "cat", "chair", "cup", "dog", "motorcycle",
            "dining table", "person"]
+classes = ['airliner',
+ 'bicycle',
+ 'Border collie',
+ 'cup',
+ 'dining table',
+ 'elephant',
+ 'folding chair',
+ 'golden retriever',
+ 'military plane',
+ 'minibus',
+ 'Persian cat',
+ 'school_bus',
+ 'speedboat',
+ 'tabby cat',
+ 'yawl']
 
 print(tf.__version__)
 print(device_lib.list_local_devices())
@@ -52,9 +71,17 @@ def uint8c(x):
 def preprocess(p=0.5):
     def _preprocess(x):
         if np.random.random() < p:
-            aug = augmentation.Augmenter_rand(noise='gaussian', blur=(0, 300), saturation=False, gamma=(1.5, 5), brightness=False, contrast=False)
-            x = uint8c(x)
-            x = aug.illumination_augmenter(x)
+            alpha = np.random.uniform(0.8, 0.9)
+            beta = np.random.uniform(0.5, 1)
+            gamma = np.random.uniform(2, 9)
+            var_noise = np.random.uniform(0.0001, 0.01)
+            img_dark = low_light_transform(np.float32(x) / 255, alpha, beta, gamma)
+            img_dark = blur(img_dark)
+            x = read_noise(img_dark, var_noise)
+            x = np.clip(x*255, 0, 255).astype(np.uint8)
+           # aug = augmentation.Augmenter_rand(noise='gaussian', blur=(0, 300), saturation=False, gamma=(1.5, 5), brightness=False, contrast=False)
+            #x = uint8c(x)
+            #x = aug.illumination_augmenter(x)
         #     min_dim = min(x.shape[:2])
         #     _patch_size = sample(size_list, k=1)[0]
         #     patch_size = (_patch_size, _patch_size)
@@ -71,20 +98,6 @@ class Environment(Enum):
     TRANSFER = 1
     FINETURNING = 2
 
-class PathDatasets(Enum):
-    # EXDARK = r"E:\dataset\ExDark"k
-    # COCO_TEST = r"E:\dataset\MyCoco\test"
-    # COCO_TRAIN = r"E:\dataset\MyCoco\train"
-    # AUG_TEST = r"E:\dataset\augmentation_images"
-    COCO_TEST_SMALL = r"E:\dataset\MyCoco\test_small"
-    COCO_TRAIN_SMALL = r"E:\dataset\MyCoco\train_small"
-    EXDARK_TRAIN = r"E:\dataset\ExDark_train"
-    EXDARK_TEST = r"E:\dataset\ExDark_test"
-    COCO_AUG_TEST = r"E:\dataset\augmentation_images_small"
-    EXDARK = r"E:\dataset\ExDark"
-    COCO_TEST = r"E:\dataset\MyCoco\test"
-    COCO_TRAIN = r"E:\dataset\MyCoco\train"
-    AUG_TEST = r"E:\dataset\augmentation_images"
 
 class DPhandler(object):
 
@@ -103,10 +116,10 @@ class DPhandler(object):
         self.checkpoint_path = os.path.join(checkpoint_path, self.name)
         self.finetuning = finetuning
         self.lr = lr
-        self.create_relavant_folders()
+        self.create_relavant_folders(figure_path)
 
 
-    def create_relavant_folders(self):
+    def create_relavant_folders(self, figure_path):
         if not os.path.exists(self.checkpoint_path):
             os.mkdir(self.checkpoint_path)
         self.figure_path = figure_path
@@ -332,6 +345,7 @@ class DPhandler(object):
 
     def evaluate(self, ds, ds_name):
         pred, predicted_class_indices = self.predict(ds)
+        #predicted_class_indices[predicted_class_indices==1].shape[0]/predicted_class_indices.shape[0]
         acc, score = self.confuction_mat(ds.labels, predicted_class_indices, list(ds.class_indices.keys()), ds_name)
         return np.round(acc, 3), np.round(score, 3)
 
@@ -398,7 +412,7 @@ def load_saved_model(path, ModelName, figure_path):
     return dp
 
 
-def train_model(ModelName, dataset_dir, classes, weights,
+def train_model(ModelName, classes, weights,
                 num_epochs, early_stop_patience,
                 batch_training, batch_valid,
                 pretrain_model, lr, lr_s, finetuning, figure_path, directories, preprocess, classificationLayers):
@@ -423,9 +437,14 @@ def train_model(ModelName, dataset_dir, classes, weights,
 
 def update_df_summery(df_summery, dp, dataset_name, acc, acc_per_class):
     if np.any((df_summery['model'] == dp.name) & (df_summery['dataset'] == dataset_name)):
-        df_summery.loc[(df_summery['model'] == dp.name) & (df_summery['dataset'] == dataset_name), ['acc'] + classes] = [acc] + list(acc_per_class)
-    else:
+        #df_summery.loc[(df_summery['model'] == dp.name) & (df_summery['dataset'] == dataset_name), ['acc'] + classes] = [acc] + list(acc_per_class)
         df_summery.loc[len(df_summery), :] = [dp.name, dataset_name, 0, acc] + list(acc_per_class)
+
+    else:
+        try:
+            df_summery.loc[len(df_summery), :] = [dp.name, dataset_name, 0, acc] + list(acc_per_class)
+        except:
+            pass
     return df_summery
 
 
@@ -467,17 +486,20 @@ def run_train(weights, probability_dark, ModelName,
     figure_path = os.path.join(figure_path, ModelName)
     Path = r"E:\dataset\models_saved"
     saved_models_path = os.path.join(Path, ModelName + ".h")
-    early_stop_patience = 50
-    classificationLayers = [Flatten(), Dense(512, activation='relu'), Dense(len(classes), activation='softmax')] #[layers.BatchNormalization(), layers.Dropout(0.2, name="top_dropout"), Dense(len(classes), activation='softmax')]#
+    early_stop_patience = 3
+    classificationLayers = [Flatten(), Dense(len(classes), activation='softmax')] #[Flatten(), Dense(512, activation='relu'), Dense(len(classes), activation='softmax')] #[layers.BatchNormalization(), layers.Dropout(0.2, name="top_dropout"), Dense(len(classes), activation='softmax')]#
     df_summery = pd.read_csv('dp_summery.csv', index_col='No')
-    dp, acc_val = train_model(ModelName, PathDatasets.COCO_TRAIN.value, classes, weights,
+    dp, acc_val = train_model(ModelName, classes, weights,
                               num_epochs, early_stop_patience,
                               batch_training, batch_valid, pretrain_model,
                               learning_rate, lr_schedule, finetuning, figure_path, directories, mypreprocess, classificationLayers)
     if np.any((df_summery['model'] == dp.name)):
         df_summery.loc[df_summery['model'] == dp.name, 'acc_val'] = np.round(acc_val, 2)
     else:
-        df_summery.loc[len(df_summery), :] = [dp.name, '', acc_val, 0] + [0] * len(classes)
+        try:
+            df_summery.loc[len(df_summery), :] = [dp.name, '', acc_val, 0] + [0] * len(classes)
+        except:
+            pass
     dp.saved_model(saved_models_path)
     df_summery.to_csv('dp_summery.csv')
     return dp
@@ -485,51 +507,81 @@ def run_train(weights, probability_dark, ModelName,
 if __name__ == '__main__':
     weights = 'imagenet'
     probability_dark = 0.5
-    #split_ds("")
     mypreprocess = preprocess(p=probability_dark)
     checkpoint_path = r"E:\dataset\checkpoints"
-    directories = [PathDatasets.COCO_TRAIN_SMALL.value]
-    #dark: coco
-    ModelName = Models.resnet50_finetuning_0_10.name
+    directories = [PathDatasets.Imagenet_train.value]
+    ModelName = Models.resnet50_transfer_5_5.name
     figure_path = os.path.join(file_path, 'figures')
     figure_path = os.path.join(figure_path, ModelName)
     Path = r"E:\dataset\models_saved"
     saved_models_path = os.path.join(Path, ModelName + ".h")
-    num_epochs = 5
-    early_stop_patience = 50
+    num_epochs = 20
+    early_stop_patience = 3
     batch_training = 32
     batch_valid = 32
     learning_rate = 0.0001
     pretrain_model = ResNet50 #EfficientNetB0
     do_train = 0
     lr_schedule = True
-    finetuning = False
+    finetuning = True
 
     # load test Datesets:
     #ds_train = DPhandler.load_dataset(dataset_train_dir, preprocess_input, classes)
-    ds_test = DPhandler.load_dataset(PathDatasets.COCO_TEST_SMALL.value, preprocess_input, classes)
-    ds_dark = DPhandler.load_dataset(PathDatasets.EXDARK_TEST.value, preprocess_input, classes)
-    ds_aug = DPhandler.load_dataset(PathDatasets.COCO_AUG_TEST.value, preprocess_input, classes)
+    ds_test = DPhandler.load_dataset(PathDatasets.Imagenet_test.value, preprocess_input, classes)
+    ds_aug1 = DPhandler.load_dataset(PathDatasets.Imagenet_aug1.value, preprocess_input, classes)
+    ds_aug2 = DPhandler.load_dataset(PathDatasets.Imagenet_aug2.value, preprocess_input, classes)
+    ds_aug3 = DPhandler.load_dataset(PathDatasets.Imagenet_aug3.value, preprocess_input, classes)
+    ds_aug4 = DPhandler.load_dataset(PathDatasets.Imagenet_aug4.value, preprocess_input, classes)
 
-    ModelNames = [Models.resnet50_finetuning_10_0.name, Models.resnet50_finetuning_9_1.name, Models.resnet50_finetuning_8_2.name, Models.resnet50_finetuning_7_3.name,
-                 Models.resnet50_finetuning_6_4.name, Models.resnet50_finetuning_5_5.name, Models.resnet50_finetuning_4_6.name, Models.resnet50_finetuning_3_7.name,
-                 Models.resnet50_finetuning_2_8.name, Models.resnet50_finetuning_9_1.name, Models.resnet50_finetuning_0_10.name]
+    ds_aug = DPhandler.load_dataset(PathDatasets.Imagenet_aug.value, preprocess_input, classes)
+
+    if finetuning:
+        ModelNames = [Models.resnet50_finetuning_10_0.name, Models.resnet50_finetuning_9_1.name, Models.resnet50_finetuning_8_2.name, Models.resnet50_finetuning_7_3.name,
+                     Models.resnet50_finetuning_6_4.name, Models.resnet50_finetuning_5_5.name, Models.resnet50_finetuning_4_6.name, Models.resnet50_finetuning_3_7.name,
+                     Models.resnet50_finetuning_2_8.name, Models.resnet50_finetuning_1_9.name, Models.resnet50_finetuning_0_10.name]
+    else:
+        ModelNames = [Models.resnet50_transfer_10_0.name, Models.resnet50_transfer_9_1.name, Models.resnet50_transfer_8_2.name, Models.resnet50_transfer_7_3.name,
+                     Models.resnet50_transfer_6_4.name, Models.resnet50_transfer_5_5.name, Models.resnet50_transfer_4_6.name, Models.resnet50_transfer_3_7.name,
+                     Models.resnet50_transfer_2_8.name, Models.resnet50_transfer_9_1.name, Models.resnet50_transfer_0_10.name]
+
+    # if do_train == 1 : #load our trained model
+    #     dp = load_saved_model(saved_models_path, ModelName, figure_path)
+    #     df_summery = pd.read_csv('dp_summery.csv', index_col='No')
+    #     acc_per_class, acc = dp.evaluate(ds_aug1, "very_dark")
+    #     df_summery = update_df_summery(df_summery, dp, "very_dark", acc, acc_per_class)
+    #     df_summery.to_csv('dp_summery.csv')
+
+
     probability_darks = np.arange(0, 1.1, 0.1)
     for probability_dark, ModelName in zip(probability_darks, ModelNames):
-        dp = run_train(weights, probability_dark, ModelName,
-                  directories, num_epochs, batch_training,
-                  batch_valid, learning_rate, pretrain_model,
-                  lr_schedule, finetuning)
+        print(colored(f"{ModelName}",'green'))
+        #probability_dark = 0.5
+        if do_train == 1:  # load our trained model
+            dp = load_saved_model(saved_models_path, ModelName, figure_path)
+        else:
+            dp = run_train(weights, probability_dark, ModelName,
+                      directories, num_epochs, batch_training,
+                      batch_valid, learning_rate, pretrain_model,
+                      lr_schedule, finetuning)
         # evaluate accuracy and confusion matrix
         df_summery = pd.read_csv('dp_summery.csv', index_col='No')
-        acc_per_class, acc = dp.evaluate(ds_aug, "coco_aug_test")
-        df_summery = update_df_summery(df_summery, dp, "coco_aug_test", acc, acc_per_class)
+        # acc_per_class, acc = dp.evaluate(ds_aug, "Dark_test")
+        # df_summery = update_df_summery(df_summery, dp, "Dark_test", acc, acc_per_class)
 
-        acc_per_class, acc = dp.evaluate(ds_test, "coco_test")
-        df_summery = update_df_summery(df_summery, dp, "coco_test", acc, acc_per_class)
+        acc_per_class, acc = dp.evaluate(ds_aug1, "ds_aug1")
+        df_summery = update_df_summery(df_summery, dp, "ds_aug1", acc, acc_per_class)
 
-        acc_per_class, acc = dp.evaluate(ds_dark, "exdark")
-        df_summery = update_df_summery(df_summery, dp, "exdark", acc, acc_per_class)
+        acc_per_class, acc = dp.evaluate(ds_test, "test")
+        df_summery = update_df_summery(df_summery, dp, "test", acc, acc_per_class)
+
+        acc_per_class, acc = dp.evaluate(ds_aug2, "ds_aug2")
+        df_summery = update_df_summery(df_summery, dp, "ds_aug2", acc, acc_per_class)
+
+        acc_per_class, acc = dp.evaluate(ds_aug3, "ds_aug3")
+        df_summery = update_df_summery(df_summery, dp, "ds_aug3", acc, acc_per_class)
+
+        acc_per_class, acc = dp.evaluate(ds_aug4, "ds_aug4")
+        df_summery = update_df_summery(df_summery, dp, "ds_aug4", acc, acc_per_class)
 
         df_summery.to_csv('dp_summery.csv')
         plt.close('all')

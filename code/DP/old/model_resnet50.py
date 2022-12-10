@@ -80,8 +80,6 @@ def preprocess_extract_patch(p=0.2, size_list=[32, 64, 96, 128, 156]):
 
         return preprocess_input(x)
     return _preprocess_extract_patch
-
-
 preprocess_extract_patch = preprocess_extract_patch(p=0.9)
 
 data_generator = ImageDataGenerator(preprocessing_function=preprocess_extract_patch,

@@ -6,7 +6,7 @@ from tensorflow.keras import layers
 from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras import Sequential
 from tensorflow.keras.optimizers import Adam
-from augmentation.ds_analyze import *
+from augmentation.Exdark_analyze import *
 import fiftyone.zoo as foz
 import fiftyone
 import matplotlib.pyplot as plt

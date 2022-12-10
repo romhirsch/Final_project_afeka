@@ -43,7 +43,8 @@ def calc_img_params(images, image_name):
     for i, (img, name) in enumerate(zip(images, image_name)):
         try:
             df.loc[i, 'image_name'] = name
-            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            img = img.astype(np.uint8)
+            hsv = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_BGR2HSV)
             df.loc[i, 's_hsv'] = hsv[:, :, 1].mean()
             img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             df.loc[i, 'brightness'] = np.median(img_gray)
@@ -88,8 +89,8 @@ def plot_diff_ds(df_all):
     f.suptitle('Y luminance', fontsize=14)
     sns.boxplot(x="ds", y="Y", data=df_all, ax=ax)
     ax.set_xlabel("datasets", size=12, alpha=0.8)
-    ax.set_ylabel("blur", size=12, alpha=0.8)
-    plt.savefig('blur_datasets.png')
+    ax.set_ylabel("luminance", size=12, alpha=0.8)
+    plt.savefig('luminance_datasets.png')
 class Dataset_creator():
 
     def __init__(self, dataset_folder, exdark=False):
@@ -115,7 +116,7 @@ class Dataset_creator():
         for dir1 in os.listdir(img_folder):
             print(os.path.join(img_folder, dir1))
             for file in os.listdir(os.path.join(img_folder, dir1)):
-                if file.endswith(tuple(self.formats)):
+                if file.lower().endswith(tuple(self.formats)):
                     image_path = os.path.join(img_folder, dir1, file)
                     image = cv2.imread(image_path)#, cv2.COLOR_BGR2RGB)
                     #image = cv2.resize(image, (IMG_HEIGHT, IMG_WIDTH), interpolation=cv2.INTER_AREA)
@@ -134,9 +135,14 @@ class Dataset_creator():
 
 
 if __name__ == '__main__':
-
-    ds_names = [PathDatasets.EXDARK.name, PathDatasets.COCO_TEST_SMALL.name, PathDatasets.COCO_TRAIN_SMALL.name]
-    img_folders = [PathDatasets.EXDARK.value, PathDatasets.COCO_TEST_SMALL.value, PathDatasets.COCO_TRAIN_SMALL.value ]
+    ds_names = [PathDatasets.Imagenet_test.name, PathDatasets.Imagenet_train.name, PathDatasets.Imagenet_aug1.name,
+                PathDatasets.Imagenet_aug2.name, PathDatasets.Imagenet_aug3.name,
+                PathDatasets.Imagenet_aug4.name, PathDatasets.lol_low.name, PathDatasets.lol_high.name]
+    img_folders = [PathDatasets.Imagenet_test.value, PathDatasets.Imagenet_train.value,
+                   PathDatasets.Imagenet_aug1.value, PathDatasets.Imagenet_aug2.value,
+                   PathDatasets.Imagenet_aug3.value, PathDatasets.Imagenet_aug4.value, PathDatasets.lol_low.value, PathDatasets.lol_high.value]
+    # ds_names = [ PathDatasets.lol_low.name, PathDatasets.lol_high.name]
+    # img_folders = [ PathDatasets.lol_low.value, PathDatasets.lol_high.value]
     df_all = pd.DataFrame()
     exdark_flag = False
     for ds_name, img_folder in zip(ds_names, img_folders):
